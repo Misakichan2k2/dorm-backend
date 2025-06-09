@@ -12,7 +12,7 @@ const renewalRequestSchema = new mongoose.Schema(
     year: { type: Number, required: true },
     status: {
       type: String,
-      enum: ["unpaid", "pending", "approved", "rejected"],
+      enum: ["unpaid", "pending", "approved", "rejected", "refunded"],
       default: "unpaid",
     },
     paymentMethod: {

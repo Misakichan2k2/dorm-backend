@@ -68,19 +68,21 @@ export const createRenewalRequest = async (req, res) => {
 // Get all
 export const getAllRenewalRequests = async (req, res) => {
   try {
-    const requests = await RenewalRequestModel.find().populate({
-      path: "student",
-      populate: {
-        path: "registration",
+    const requests = await RenewalRequestModel.find()
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "student",
         populate: {
-          path: "room",
+          path: "registration",
           populate: {
-            path: "building",
-            select: "name",
+            path: "room",
+            populate: {
+              path: "building",
+              select: "name",
+            },
           },
         },
-      },
-    });
+      });
 
     res.json(requests);
   } catch (error) {
@@ -109,6 +111,69 @@ export const getRenewalRequestById = async (req, res) => {
     res.json(request);
   } catch (error) {
     res.status(500).json({ message: "Error fetching request", error });
+  }
+};
+
+export const getRenewalRequestsByStatus = async (req, res) => {
+  try {
+    const { status, search, building, room, gender } = req.query;
+
+    const validStatuses = ["unpaid", "pending", "approved", "rejected"];
+    const filter = {};
+
+    // Lọc theo status
+    if (status && status !== "all") {
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Trạng thái không hợp lệ." });
+      }
+      filter.status = status;
+    }
+
+    // Populate student → registration → room → building
+    let requests = await RenewalRequestModel.find(filter)
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "student",
+        populate: {
+          path: "registration",
+          populate: {
+            path: "room",
+            populate: {
+              path: "building",
+            },
+          },
+        },
+      });
+
+    // Lọc theo search, gender, room, building
+    requests = requests.filter((r) => {
+      const student = r.student;
+      const registration = student?.registration;
+      const studentRoom = registration?.room;
+      const studentBuilding = studentRoom?.building;
+
+      const matchSearch =
+        !search ||
+        r.renewalRequestId?.toLowerCase().includes(search.toLowerCase()) ||
+        registration?.fullname?.toLowerCase().includes(search.toLowerCase()) ||
+        registration?.studentId?.toLowerCase().includes(search.toLowerCase());
+
+      const matchGender =
+        !gender || gender === "all" || student?.gender === gender;
+
+      const matchRoom =
+        !room || studentRoom?.room?.toLowerCase() === room.toLowerCase();
+
+      const matchBuilding =
+        !building ||
+        studentBuilding?.name?.toLowerCase() === building.toLowerCase();
+
+      return matchSearch && matchGender && matchRoom && matchBuilding;
+    });
+
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 

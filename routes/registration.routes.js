@@ -13,6 +13,7 @@ import {
   deleteRegistrationById,
   deleteUnapprovedRegistrations,
   updatePaymentMethod,
+  getRegistrationsByStatus,
 } from "../controllers/registrationController.js";
 import { verifyToken } from "../middlewares/verifyUser.js";
 
@@ -24,6 +25,7 @@ router.get("/me", verifyToken, getMyProfile);
 router.get("/hasRegistration", verifyToken, checkMyRegistration);
 router.get("/history", verifyToken, getRegistrationHistory);
 router.get("/", getAllRegistrations);
+router.get("/registrations", getRegistrationsByStatus);
 router.get("/:id", getRegistrationById);
 router.put("/:id/status", updateRegistrationStatus);
 router.put("/:id/register-form", updateRegisterFormDetail);

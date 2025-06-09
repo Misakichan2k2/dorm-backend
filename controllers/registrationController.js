@@ -224,6 +224,73 @@ export const getRegistrationById = async (req, res, next) => {
   }
 };
 
+// Lấy đơn theo status
+export const getRegistrationsByStatus = async (req, res) => {
+  try {
+    const { status, search, building, room, gender } = req.query;
+
+    const validStatuses = [
+      "unpaid",
+      "pending",
+      "approved",
+      "rejected",
+      "canceled",
+      "refunded",
+    ];
+
+    const filter = {};
+
+    // Lọc theo status
+    if (status && status !== "all") {
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({ message: "Trạng thái không hợp lệ." });
+      }
+      filter.status = status;
+    }
+
+    // Lọc theo giới tính
+    if (gender && gender !== "all") {
+      filter.gender = gender;
+    }
+
+    // Lọc theo từ khóa (mã đăng ký, họ tên, MSSV)
+    if (search) {
+      filter.$or = [
+        { registrationCode: { $regex: search, $options: "i" } },
+        { fullname: { $regex: search, $options: "i" } },
+        { studentId: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    // Populate dữ liệu
+    let registrations = await Registration.find(filter)
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "room",
+        populate: { path: "building" },
+      })
+      .populate("user");
+
+    // ⚠️ Lọc theo phòng (room.room là tên phòng, ví dụ "301")
+    if (room) {
+      registrations = registrations.filter(
+        (r) => r.room && r.room.room === room
+      );
+    }
+
+    // ⚠️ Lọc theo khu nhà (building.name là tên khu, ví dụ "A", "B", "C")
+    if (building) {
+      registrations = registrations.filter(
+        (r) => r.room?.building?.name === building
+      );
+    }
+
+    res.json(registrations);
+  } catch (error) {
+    res.status(500).json({ message: "Lỗi server", error: error.message });
+  }
+};
+
 // Cập nhật trạng thái đơn đăng ký
 export const updateRegistrationStatus = async (req, res, next) => {
   try {
