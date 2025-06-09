@@ -1,0 +1,216 @@
+import RenewalRequestModel from "../models/RenewalRequest.js";
+import Student from "../models/Student.js";
+
+// Generate ID logic
+const generateRenewalRequestId = async () => {
+  let code;
+  let exists = true;
+
+  while (exists) {
+    const randomNum = Math.floor(10000 + Math.random() * 90000);
+    code = `RR${randomNum}`;
+    exists = await RenewalRequestModel.findOne({ renewalRequestId: code });
+  }
+
+  return code;
+};
+
+// Create new request
+export const createRenewalRequest = async (req, res) => {
+  try {
+    const { student: studentId, notes } = req.body;
+
+    const student = await Student.findById(studentId);
+    if (!student || !student.endDate) {
+      return res.status(400).json({ message: "Student or endDate not found" });
+    }
+
+    const endDate = new Date(student.endDate);
+    let month = endDate.getMonth() + 2;
+    let year = endDate.getFullYear();
+    if (month === 13) {
+      month = 1;
+      year += 1;
+    }
+
+    // ✅ Kiểm tra đơn đã tồn tại chưa
+    // const existing = await RenewalRequestModel.findOne({
+    //   student: studentId,
+    //   month,
+    //   year,
+    // });
+    // if (existing) {
+    //   return res
+    //     .status(400)
+    //     .json({ message: "Renewal request for this period already exists" });
+    // }
+
+    const renewalRequestId = await generateRenewalRequestId();
+
+    const newRequest = await RenewalRequestModel.create({
+      student: studentId,
+      notes,
+      renewalRequestId,
+      month,
+      year,
+    });
+
+    res.status(201).json(newRequest);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      message: "Error creating renewal request",
+      error: error.message || error,
+    });
+  }
+};
+
+// Get all
+export const getAllRenewalRequests = async (req, res) => {
+  try {
+    const requests = await RenewalRequestModel.find().populate({
+      path: "student",
+      populate: {
+        path: "registration",
+        populate: {
+          path: "room",
+          populate: {
+            path: "building",
+            select: "name",
+          },
+        },
+      },
+    });
+
+    res.json(requests);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching renewal requests", error });
+  }
+};
+
+// Get by ID
+export const getRenewalRequestById = async (req, res) => {
+  try {
+    const request = await RenewalRequestModel.findById(req.params.id).populate({
+      path: "student",
+      populate: {
+        path: "registration",
+        populate: {
+          path: "room",
+          populate: {
+            path: "building",
+            select: "name",
+          },
+        },
+      },
+    });
+
+    if (!request) return res.status(404).json({ message: "Request not found" });
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching request", error });
+  }
+};
+
+// Update status
+export const updateRenewalRequestStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+
+    if (!["pending", "approved", "rejected", "unpaid"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
+    }
+
+    const request = await RenewalRequestModel.findByIdAndUpdate(
+      req.params.id,
+      { status },
+      { new: true }
+    ).populate("student");
+
+    if (!request) return res.status(404).json({ message: "Request not found" });
+
+    // ✅ Nếu đơn được duyệt thì cập nhật endDate của student
+    if (status === "approved") {
+      const { student, month, year } = request;
+
+      // Tránh lỗi nếu student không được populate
+      if (!student || !student._id) {
+        return res
+          .status(400)
+          .json({ message: "Student not found in request" });
+      }
+
+      // Tạo ngày cuối tháng tương ứng
+      const newEndDate = new Date(year, month, 0);
+
+      await Student.findByIdAndUpdate(student._id, {
+        endDate: newEndDate,
+      });
+    }
+
+    res.json(request);
+  } catch (error) {
+    console.error("Lỗi cập nhật trạng thái:", error);
+    res.status(500).json({
+      message: "Error updating status",
+      error: error.message || error.toString() || "Unknown error",
+    });
+  }
+};
+
+// Update notes
+export const updateRenewalRequestNotes = async (req, res) => {
+  try {
+    const { notes } = req.body;
+    const request = await RenewalRequestModel.findByIdAndUpdate(
+      req.params.id,
+      { notes },
+      { new: true }
+    );
+    if (!request) return res.status(404).json({ message: "Request not found" });
+    res.json(request);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating notes", error });
+  }
+};
+
+// Update
+export const updateRenewalRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { student, status, notes, month, year } = req.body;
+
+    // Nếu status có trong body, kiểm tra hợp lệ
+    if (
+      status &&
+      !["pending", "approved", "rejected", "unpaid"].includes(status)
+    ) {
+      return res.status(400).json({ message: "Invalid status value" });
+    }
+
+    const updated = await RenewalRequestModel.findByIdAndUpdate(
+      id,
+      { student, status, notes, month, year },
+      { new: true }
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Renewal request not found" });
+    }
+
+    res.json(updated);
+  } catch (error) {
+    res.status(500).json({ message: "Error updating renewal request", error });
+  }
+};
+
+// Delete
+export const deleteRenewalRequest = async (req, res) => {
+  try {
+    const deleted = await RenewalRequestModel.findByIdAndDelete(req.params.id);
+    if (!deleted) return res.status(404).json({ message: "Request not found" });
+    res.json({ message: "Deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Error deleting request", error });
+  }
+};
