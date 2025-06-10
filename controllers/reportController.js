@@ -50,7 +50,6 @@ export const createReport = async (req, res, next) => {
 };
 
 // USER - Get all reports của phòng mình
-// USER - Get all reports của chính mình
 export const getMyReports = async (req, res, next) => {
   try {
     // Lấy tất cả studentId thuộc về user hiện tại
@@ -104,21 +103,28 @@ export const getAllReports = async (req, res, next) => {
         },
       });
 
-    const result = reports.map((report) => ({
-      _id: report._id,
-      reportId: report.reportId,
-      creator: report.student.registration?.fullname || "N/A",
-      studentId: report.student.registration?.studentId || "N/A",
-      title: report.title,
-      description: report.description,
-      category: report.category,
-      image: report.image,
-      status: report.status,
-      createdAt: report.createdAt,
-      completedAt: report.completedAt,
-      room: report.student.registration?.room?.room || "",
-      building: report.student.registration?.room?.building?.name || "",
-    }));
+    const result = reports.map((report) => {
+      const student = report.student;
+      const registration = student?.registration;
+      const room = registration?.room;
+      const building = room?.building;
+
+      return {
+        _id: report._id,
+        reportId: report.reportId,
+        creator: registration?.fullname || "N/A",
+        studentId: registration?.studentId || "N/A",
+        title: report.title,
+        description: report.description,
+        category: report.category,
+        image: report.image,
+        status: report.status,
+        createdAt: report.createdAt,
+        completedAt: report.completedAt,
+        room: room?.room || "",
+        building: building?.name || "",
+      };
+    });
 
     res.status(200).json(result);
   } catch (error) {

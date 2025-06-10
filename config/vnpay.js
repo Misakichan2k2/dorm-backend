@@ -1,7 +1,8 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-// config/vnpay.config.js
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL;
+
 export default {
   vnp_TmnCode: process.env.VNP_TMNCODE, // mã TMN của bạn
   vnp_HashSecret: process.env.VNP_HASHSECRET, // key bí mật do VNPAY cấp
@@ -18,4 +19,9 @@ export default {
 
   vnp_RenewalReturnUrl:
     "http://localhost:3000/api/payments/renewal-vnpay-return",
+
+  paymentResultUrls: {
+    invoice: `${FRONTEND_BASE_URL}/payment-result`,
+    request: `${FRONTEND_BASE_URL}/payment-result-request`,
+  },
 };

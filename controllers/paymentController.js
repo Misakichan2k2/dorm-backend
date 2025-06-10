@@ -103,7 +103,9 @@ export const vnpayElectricReturn = async (req, res) => {
     const signed = hmac.update(Buffer.from(signData, "utf-8")).digest("hex");
 
     if (secureHash !== signed) {
-      return res.redirect("http://localhost:5173/payment-result?success=false");
+      return res.redirect(
+        `${vnpayConfig.paymentResultUrls.invoice}?success=false`
+      );
     }
 
     const invoiceId = vnp_Params["vnp_TxnRef"];
@@ -112,11 +114,15 @@ export const vnpayElectricReturn = async (req, res) => {
       .populate("payer");
 
     if (!invoice) {
-      return res.redirect("http://localhost:5173/payment-result?success=false");
+      return res.redirect(
+        `${vnpayConfig.paymentResultUrls.invoice}?success=false`
+      );
     }
 
     if (invoice.status === "Đã đóng") {
-      return res.redirect("http://localhost:5173/payment-result?success=true");
+      return res.redirect(
+        `${vnpayConfig.paymentResultUrls.invoice}?success=true"`
+      );
     }
 
     invoice.status = "Đã đóng";
@@ -127,15 +133,21 @@ export const vnpayElectricReturn = async (req, res) => {
     });
 
     if (!registration || !registration.email) {
-      return res.redirect("http://localhost:5173/payment-result?success=false");
+      return res.redirect(
+        `${vnpayConfig.paymentResultUrls.invoice}?success=false`
+      );
     }
 
     await sendElectricInvoiceEmail(invoice._id, registration._id);
 
-    return res.redirect("http://localhost:5173/payment-result?success=true");
+    return res.redirect(
+      `${vnpayConfig.paymentResultUrls.invoice}?success=true"`
+    );
   } catch (error) {
     console.error("Lỗi xử lý vnpayReturn:", error);
-    return res.redirect("http://localhost:5173/payment-result?success=false");
+    return res.redirect(
+      `${vnpayConfig.paymentResultUrls.invoice}?success=false`
+    );
   }
 };
 
@@ -261,10 +273,10 @@ export const vnpayWaterReturn = async (req, res) => {
 
     await sendWaterInvoiceEmail(invoice._id, registration._id);
 
-    res.redirect("http://localhost:5173/payment-result?success=true");
+    res.redirect(`${vnpayConfig.paymentResultUrls.invoice}?success=true`);
   } catch (error) {
     console.error("Lỗi xử lý vnpayWaterReturn:", error);
-    res.redirect("http://localhost:5173/payment-result?success=false");
+    res.redirect(`${vnpayConfig.paymentResultUrls.invoice}?success=false`);
   }
 };
 
@@ -358,7 +370,7 @@ export const vnpayRegistrationReturn = async (req, res) => {
 
     if (secureHash !== signed) {
       return res.redirect(
-        "http://localhost:5173/payment-result-registration?success=false&reason=invalid-signature"
+        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=invalid-signature`
       );
     }
 
@@ -369,13 +381,13 @@ export const vnpayRegistrationReturn = async (req, res) => {
 
     if (!registration) {
       return res.redirect(
-        "http://localhost:5173/payment-result-registration?success=false&reason=not-found"
+        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=not-found`
       );
     }
 
     if (registration.status === "pending") {
       return res.redirect(
-        "http://localhost:5173/payment-result-registration?success=true&message=already-paid"
+        `${vnpayConfig.paymentResultUrls.request}?success=true&message=already-paid`
       );
     }
 
@@ -387,7 +399,7 @@ export const vnpayRegistrationReturn = async (req, res) => {
     } catch (err) {
       console.error("Lỗi khi cập nhật trạng thái:", err);
       return res.redirect(
-        "http://localhost:5173/payment-result-registration?success=false&reason=update-failed"
+        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=update-failed`
       );
     }
 
@@ -397,12 +409,12 @@ export const vnpayRegistrationReturn = async (req, res) => {
     }
 
     return res.redirect(
-      "http://localhost:5173/payment-result-registration?success=true"
+      `${vnpayConfig.paymentResultUrls.request}?success=true`
     );
   } catch (error) {
     console.error("Lỗi xử lý vnpayRegistrationReturn:", error);
     return res.redirect(
-      "http://localhost:5173/payment-result-registration?success=false&reason=server-error"
+      `${vnpayConfig.paymentResultUrls.request}?success=false&reason=server-error`
     );
   }
 };
@@ -498,7 +510,7 @@ export const vnpayRenewalReturn = async (req, res) => {
 
     if (secureHash !== signed) {
       return res.redirect(
-        "http://localhost:5173/payment-result?success=false&reason=invalid-signature"
+        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=invalid-signature`
       );
     }
 
@@ -514,13 +526,13 @@ export const vnpayRenewalReturn = async (req, res) => {
 
     if (!request) {
       return res.redirect(
-        "http://localhost:5173/payment-result?success=false&reason=not-found"
+        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=not-found`
       );
     }
 
     if (request.status === "pending") {
       return res.redirect(
-        "http://localhost:5173/payment-result?success=true&message=already-paid"
+        `${vnpayConfig.paymentResultUrls.request}?success=true&message=already-paid`
       );
     }
 
@@ -530,7 +542,7 @@ export const vnpayRenewalReturn = async (req, res) => {
     } catch (err) {
       console.error("Lỗi khi cập nhật trạng thái yêu cầu gia hạn:", err);
       return res.redirect(
-        "http://localhost:5173/payment-result?success=false&reason=update-failed"
+        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=update-failed`
       );
     }
 
@@ -539,11 +551,13 @@ export const vnpayRenewalReturn = async (req, res) => {
       await sendRenewalInvoiceEmail(request._id);
     }
 
-    return res.redirect("http://localhost:5173/payment-result?success=true");
+    return res.redirect(
+      `${vnpayConfig.paymentResultUrls.request}?success=true`
+    );
   } catch (error) {
     console.error("VNPAY RENEWAL RETURN ERROR:", error);
     return res.redirect(
-      "http://localhost:5173/payment-result?success=false&reason=server-error"
+      `${vnpayConfig.paymentResultUrls.request}?success=false&reason=server-error`
     );
   }
 };

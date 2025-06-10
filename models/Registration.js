@@ -53,7 +53,8 @@ const registrationSchema = new mongoose.Schema(
     },
     registerFormDetail: {
       type: String,
-      default: "",
+      default:
+        "Bạn chưa thanh toán. Vui lòng hoàn tất thanh toán trong vòng 24 giờ kể từ khi tạo đơn để đơn đăng ký không bị hủy.",
     },
   },
   { timestamps: true }
