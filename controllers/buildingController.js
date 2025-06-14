@@ -51,10 +51,12 @@ export const getBuildings = async (req, res, next) => {
       countMap[item._id?.toString()] = item.count;
     });
 
-    const buildingsWithCount = buildings.map((building) => ({
-      ...building.toObject(),
-      rentedStudents: countMap[building._id.toString()] || 0,
-    }));
+    const buildingsWithCount = buildings
+      .map((building) => ({
+        ...building.toObject(),
+        rentedStudents: countMap[building._id.toString()] || 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name));
 
     res.status(200).json(buildingsWithCount);
   } catch (error) {

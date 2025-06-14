@@ -118,7 +118,14 @@ export const getRenewalRequestsByStatus = async (req, res) => {
   try {
     const { status, search, building, room, gender } = req.query;
 
-    const validStatuses = ["unpaid", "pending", "approved", "rejected"];
+    const validStatuses = [
+      "unpaid",
+      "pending",
+      "approved",
+      "rejected",
+      "canceled",
+      "refunded",
+    ];
     const filter = {};
 
     // Lọc theo status
@@ -159,7 +166,7 @@ export const getRenewalRequestsByStatus = async (req, res) => {
         registration?.studentId?.toLowerCase().includes(search.toLowerCase());
 
       const matchGender =
-        !gender || gender === "all" || student?.gender === gender;
+        !gender || gender === "all" || registration?.gender === gender;
 
       const matchRoom =
         !room || studentRoom?.room?.toLowerCase() === room.toLowerCase();
@@ -182,7 +189,16 @@ export const updateRenewalRequestStatus = async (req, res) => {
   try {
     const { status } = req.body;
 
-    if (!["pending", "approved", "rejected", "unpaid"].includes(status)) {
+    if (
+      ![
+        "pending",
+        "approved",
+        "rejected",
+        "unpaid",
+        "canceled",
+        "refunded",
+      ].includes(status)
+    ) {
       return res.status(400).json({ message: "Invalid status" });
     }
 
@@ -248,7 +264,14 @@ export const updateRenewalRequest = async (req, res) => {
     // Nếu status có trong body, kiểm tra hợp lệ
     if (
       status &&
-      !["pending", "approved", "rejected", "unpaid"].includes(status)
+      ![
+        "pending",
+        "approved",
+        "rejected",
+        "unpaid",
+        "canceled",
+        "refunded",
+      ].includes(status)
     ) {
       return res.status(400).json({ message: "Invalid status value" });
     }
@@ -277,5 +300,42 @@ export const deleteRenewalRequest = async (req, res) => {
     res.json({ message: "Deleted successfully" });
   } catch (error) {
     res.status(500).json({ message: "Error deleting request", error });
+  }
+};
+
+// Update payment method
+export const updatePaymentMethod = async (req, res) => {
+  try {
+    const { id } = req.params; // đây là ObjectId (gốc của MongoDB)
+    const { paymentMethod } = req.body;
+
+    const allowedMethods = ["Tiền mặt", "Chuyển khoản", "-"];
+    if (!allowedMethods.includes(paymentMethod)) {
+      return res
+        .status(400)
+        .json({ message: "Phương thức thanh toán không hợp lệ." });
+    }
+
+    const updatedRequest = await RenewalRequestModel.findByIdAndUpdate(
+      id,
+      { paymentMethod },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      return res
+        .status(404)
+        .json({ message: "Không tìm thấy yêu cầu gia hạn." });
+    }
+
+    res.status(200).json({
+      message: "Cập nhật phương thức thanh toán thành công.",
+      data: updatedRequest,
+    });
+  } catch (error) {
+    console.error("Lỗi cập nhật paymentMethod:", error);
+    res
+      .status(500)
+      .json({ message: "Đã xảy ra lỗi khi cập nhật phương thức thanh toán." });
   }
 };

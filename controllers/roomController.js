@@ -26,7 +26,9 @@ export const createRoom = async (req, res, next) => {
 // Lấy danh sách phòng
 export const getRooms = async (req, res, next) => {
   try {
-    const rooms = await Room.find().populate("building");
+    const rooms = await Room.find()
+      .sort({ createdAt: -1 })
+      .populate("building");
 
     const students = await Student.find({ status: "Đang ở" }).populate(
       "registration"

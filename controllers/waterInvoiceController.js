@@ -39,25 +39,36 @@ export const getMyRoomWaterInvoices = async (req, res) => {
 };
 
 // Admin
-
 export const createWaterInvoice = async (req, res) => {
   try {
+    const { room, month, year, oldIndex, newIndex } = req.body;
+
+    // Kiểm tra chỉ số
+    if (newIndex <= oldIndex) {
+      return res
+        .status(400)
+        .json({ error: "Chỉ số mới phải lớn hơn chỉ số cũ." });
+    }
+
+    // Kiểm tra trùng hóa đơn (theo phòng + tháng + năm)
+    const existing = await WaterInvoice.findOne({ room, month, year });
+    if (existing) {
+      return res.status(400).json({
+        error: "Hóa đơn nước cho phòng này trong tháng và năm đã tồn tại.",
+      });
+    }
+
     // Lấy thông tin phòng + building
-    const room = await RoomModel.findById(req.body.room).populate(
-      "building",
-      "name"
-    );
-    if (!room) {
+    const roomDoc = await RoomModel.findById(room).populate("building", "name");
+    if (!roomDoc) {
       return res.status(400).json({ error: "Không tìm thấy phòng." });
     }
 
     // Tạo mã hóa đơn nước
-    const buildingCode = room.building.name.replace(/\s/g, ""); // Ví dụ: B1
-    const roomCode = room.room.replace(/\s/g, ""); // Ví dụ: 101
-    const datePart = `${req.body.year}${req.body.month
-      .toString()
-      .padStart(2, "0")}`;
-    const waterId = `WL${buildingCode}${roomCode}${datePart}`; // WL = Water Logistics
+    const buildingCode = roomDoc.building.name.replace(/\s/g, "");
+    const roomCode = roomDoc.room.replace(/\s/g, "");
+    const datePart = `${year}${month.toString().padStart(2, "0")}`;
+    const waterId = `WL${buildingCode}${roomCode}${datePart}`;
 
     // Tạo hóa đơn
     const invoice = await WaterInvoice.create({

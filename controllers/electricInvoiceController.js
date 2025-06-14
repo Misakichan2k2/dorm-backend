@@ -41,21 +41,35 @@ export const getMyRoomElectricInvoices = async (req, res) => {
 // Admin
 export const createElectricInvoice = async (req, res) => {
   try {
+    const { room, month, year, oldIndex, newIndex } = req.body;
+
+    // Kiểm tra chỉ số
+    if (newIndex <= oldIndex) {
+      return res
+        .status(400)
+        .json({ error: "Chỉ số mới phải lớn hơn chỉ số cũ." });
+    }
+
+    // Kiểm tra trùng hóa đơn (theo phòng + tháng + năm)
+    const existing = await ElectricInvoice.findOne({ room, month, year });
+    if (existing) {
+      return res
+        .status(400)
+        .json({
+          error: "Hóa đơn điện cho phòng này trong tháng và năm đã tồn tại.",
+        });
+    }
+
     // Lấy thông tin phòng và khu
-    const room = await RoomModel.findById(req.body.room).populate(
-      "building",
-      "name"
-    );
-    if (!room) {
+    const roomDoc = await RoomModel.findById(room).populate("building", "name");
+    if (!roomDoc) {
       return res.status(400).json({ error: "Không tìm thấy phòng." });
     }
 
     // Tạo mã hóa đơn điện
-    const buildingCode = room.building.name.replace(/\s/g, ""); // Loại bỏ khoảng trắng nếu có
-    const roomCode = room.room.replace(/\s/g, ""); // Tương tự
-    const datePart = `${req.body.year}${req.body.month
-      .toString()
-      .padStart(2, "0")}`;
+    const buildingCode = roomDoc.building.name.replace(/\s/g, "");
+    const roomCode = roomDoc.room.replace(/\s/g, "");
+    const datePart = `${year}${month.toString().padStart(2, "0")}`;
 
     const electricId = `EL${buildingCode}${roomCode}${datePart}`;
 

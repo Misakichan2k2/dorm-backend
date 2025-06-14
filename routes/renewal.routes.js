@@ -8,6 +8,7 @@ import {
   updateRenewalRequest,
   deleteRenewalRequest,
   getRenewalRequestsByStatus,
+  updatePaymentMethod,
 } from "../controllers/renewalRequestController.js";
 
 import { verifyToken } from "../middlewares/verifyUser.js";
@@ -23,5 +24,6 @@ router.patch("/:id/status", updateRenewalRequestStatus);
 router.put("/:id", updateRenewalRequest);
 router.patch("/:id/note", updateRenewalRequestNotes);
 router.delete("/:id", deleteRenewalRequest);
+router.patch("/:id/payment-method", updatePaymentMethod);
 
 export default router;

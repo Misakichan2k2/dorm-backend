@@ -17,7 +17,7 @@ const renewalRequestSchema = new mongoose.Schema(
     },
     paymentMethod: {
       type: String,
-      enum: ["Tiền mặt", "chuyển khoản", "-"],
+      enum: ["Tiền mặt", "Chuyển khoản", "-"],
       default: "-",
     },
     notes: { type: String },

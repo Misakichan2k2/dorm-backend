@@ -24,6 +24,8 @@ router.post("/", verifyToken, upload.single("image"), createRegistration);
 router.get("/me", verifyToken, getMyProfile);
 router.get("/hasRegistration", verifyToken, checkMyRegistration);
 router.get("/history", verifyToken, getRegistrationHistory);
+
+// Amin
 router.get("/", getAllRegistrations);
 router.get("/registrations", getRegistrationsByStatus);
 router.get("/:id", getRegistrationById);

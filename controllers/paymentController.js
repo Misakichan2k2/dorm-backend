@@ -121,7 +121,7 @@ export const vnpayElectricReturn = async (req, res) => {
 
     if (invoice.status === "Đã đóng") {
       return res.redirect(
-        `${vnpayConfig.paymentResultUrls.invoice}?success=true"`
+        `${vnpayConfig.paymentResultUrls.invoice}?success=true`
       );
     }
 
@@ -141,7 +141,7 @@ export const vnpayElectricReturn = async (req, res) => {
     await sendElectricInvoiceEmail(invoice._id, registration._id);
 
     return res.redirect(
-      `${vnpayConfig.paymentResultUrls.invoice}?success=true"`
+      `${vnpayConfig.paymentResultUrls.invoice}?success=true`
     );
   } catch (error) {
     console.error("Lỗi xử lý vnpayReturn:", error);
