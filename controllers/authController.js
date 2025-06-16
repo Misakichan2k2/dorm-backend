@@ -59,7 +59,7 @@ export const signin = async (req, res, next) => {
 
     const validPassword = bcryptjs.compareSync(password, existedUser.password);
     if (!validPassword) {
-      return next(errorHandler(401, "Wrong credentials!"));
+      return next(errorHandler(401, "Email hoặc mật khẩu không đúng!"));
     }
 
     // Kiểm tra nếu tài khoản bị khóa
@@ -79,6 +79,36 @@ export const signOut = async (req, res, next) => {
   try {
     res.clearCookie("access_token");
     res.status(200).json("User has been logged out!");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const userId = req.user?.id;
+    const { currentPassword, newPassword } = req.body;
+
+    // Kiểm tra người dùng có tồn tại
+    const user = await User.findById(userId);
+    if (!user) {
+      return next(errorHandler(404, "Người dùng không tồn tại."));
+    }
+
+    // Kiểm tra mật khẩu hiện tại
+    const isMatch = bcryptjs.compareSync(currentPassword, user.password);
+    if (!isMatch) {
+      return next(errorHandler(401, "Mật khẩu hiện tại không đúng."));
+    }
+
+    // Hash mật khẩu mới
+    const hashedPassword = bcryptjs.hashSync(newPassword, 10);
+
+    // Cập nhật mật khẩu
+    user.password = hashedPassword;
+    await user.save();
+
+    res.status(200).json({ message: "Đổi mật khẩu thành công." });
   } catch (error) {
     next(error);
   }
@@ -122,7 +152,7 @@ export const adminSignin = async (req, res, next) => {
 
     const validPassword = bcryptjs.compareSync(password, existedAdmin.password);
     if (!validPassword) {
-      return next(errorHandler(401, "Wrong credentials!"));
+      return next(errorHandler(401, "Email hoặc mật khẩu không đúng!"));
     }
 
     const token = jwt.sign({ id: existedAdmin._id }, process.env.JWT_SECRET);

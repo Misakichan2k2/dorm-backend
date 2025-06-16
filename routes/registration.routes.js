@@ -14,6 +14,7 @@ import {
   deleteUnapprovedRegistrations,
   updatePaymentMethod,
   getRegistrationsByStatus,
+  getRegistrationStatistics,
 } from "../controllers/registrationController.js";
 import { verifyToken } from "../middlewares/verifyUser.js";
 
@@ -28,6 +29,7 @@ router.get("/history", verifyToken, getRegistrationHistory);
 // Amin
 router.get("/", getAllRegistrations);
 router.get("/registrations", getRegistrationsByStatus);
+router.get("/statistics", getRegistrationStatistics);
 router.get("/:id", getRegistrationById);
 router.put("/:id/status", updateRegistrationStatus);
 router.put("/:id/register-form", updateRegisterFormDetail);

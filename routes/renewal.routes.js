@@ -9,6 +9,7 @@ import {
   deleteRenewalRequest,
   getRenewalRequestsByStatus,
   updatePaymentMethod,
+  getMyRenewals,
 } from "../controllers/renewalRequestController.js";
 
 import { verifyToken } from "../middlewares/verifyUser.js";
@@ -19,6 +20,7 @@ const router = express.Router();
 router.post("/", verifyToken, createRenewalRequest);
 router.get("/", getAllRenewalRequests);
 router.get("/renewals", getRenewalRequestsByStatus);
+router.get("/my-renewals", verifyToken, getMyRenewals);
 router.get("/:id", getRenewalRequestById);
 router.patch("/:id/status", updateRenewalRequestStatus);
 router.put("/:id", updateRenewalRequest);

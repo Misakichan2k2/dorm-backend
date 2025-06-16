@@ -8,6 +8,7 @@ import {
   cancelMyReport,
   deleteReport,
   updateReport,
+  getReportCategoryStats,
 } from "../controllers/reportController.js";
 import { verifyToken } from "../middlewares/verifyUser.js";
 import upload from "../middlewares/uploadImage.js";
@@ -21,6 +22,7 @@ router.put("/:id/cancel", verifyToken, cancelMyReport);
 
 // Admin
 router.get("/", getAllReports);
+router.get("/statistics/category", getReportCategoryStats);
 router.get("/:id", getReportById);
 router.put("/:id", updateReport);
 router.put("/:id/status", updateReportStatusByAdmin);

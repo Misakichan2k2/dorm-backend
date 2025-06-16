@@ -1,5 +1,7 @@
 import RenewalRequestModel from "../models/RenewalRequest.js";
 import Student from "../models/Student.js";
+import { sendMail } from "../utils/registrationMailer.js";
+import { sendRenewalInvoiceEmail } from "../middlewares/invoiceMailer.js";
 
 // Generate ID logic
 const generateRenewalRequestId = async () => {
@@ -34,16 +36,17 @@ export const createRenewalRequest = async (req, res) => {
     }
 
     // ✅ Kiểm tra đơn đã tồn tại chưa
-    // const existing = await RenewalRequestModel.findOne({
-    //   student: studentId,
-    //   month,
-    //   year,
-    // });
-    // if (existing) {
-    //   return res
-    //     .status(400)
-    //     .json({ message: "Renewal request for this period already exists" });
-    // }
+    const existing = await RenewalRequestModel.findOne({
+      student: studentId,
+      month,
+      year,
+    });
+    if (existing) {
+      return res.status(400).json({
+        message:
+          "Bạn đã có một yêu cầu gia hạn cho thời gian này. Không thể gửi thêm.",
+      });
+    }
 
     const renewalRequestId = await generateRenewalRequestId();
 
@@ -62,6 +65,56 @@ export const createRenewalRequest = async (req, res) => {
       message: "Error creating renewal request",
       error: error.message || error,
     });
+  }
+};
+
+export const getMyRenewals = async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // Tìm sinh viên đang ở
+    const student = await Student.findOne({
+      user: userId,
+      status: "Đang ở",
+    }).populate({
+      path: "registration",
+      populate: {
+        path: "room",
+        populate: {
+          path: "building",
+          select: "name",
+        },
+      },
+    });
+
+    if (!student) {
+      return res
+        .status(404)
+        .json({ message: "Không tìm thấy sinh viên đang ở." });
+    }
+
+    const renewals = await RenewalRequestModel.find({
+      student: student._id,
+    })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: "student",
+        populate: {
+          path: "registration",
+          populate: {
+            path: "room",
+            populate: {
+              path: "building",
+              select: "name",
+            },
+          },
+        },
+      });
+
+    res.status(200).json({ data: renewals, student });
+  } catch (error) {
+    console.error("Lỗi lấy danh sách đơn gia hạn:", error);
+    res.status(500).json({ message: "Lỗi server", error: error.message });
   }
 };
 
@@ -184,7 +237,6 @@ export const getRenewalRequestsByStatus = async (req, res) => {
   }
 };
 
-// Update status
 export const updateRenewalRequestStatus = async (req, res) => {
   try {
     const { status } = req.body;
@@ -206,27 +258,65 @@ export const updateRenewalRequestStatus = async (req, res) => {
       req.params.id,
       { status },
       { new: true }
-    ).populate("student");
+    ).populate({
+      path: "student",
+      populate: {
+        path: "registration",
+        select: "email fullname room",
+        populate: {
+          path: "room",
+          populate: {
+            path: "building",
+            select: "name",
+          },
+        },
+      },
+    });
 
     if (!request) return res.status(404).json({ message: "Request not found" });
+
+    // ✅ Nếu chuyển sang pending và là Tiền mặt → gửi hóa đơn
+    if (status === "pending" && request.paymentMethod === "Tiền mặt") {
+      await sendRenewalInvoiceEmail(request._id);
+    }
 
     // ✅ Nếu đơn được duyệt thì cập nhật endDate của student
     if (status === "approved") {
       const { student, month, year } = request;
-
-      // Tránh lỗi nếu student không được populate
       if (!student || !student._id) {
         return res
           .status(400)
           .json({ message: "Student not found in request" });
       }
 
-      // Tạo ngày cuối tháng tương ứng
       const newEndDate = new Date(year, month, 0);
+      await Student.findByIdAndUpdate(student._id, { endDate: newEndDate });
+    }
 
-      await Student.findByIdAndUpdate(student._id, {
-        endDate: newEndDate,
-      });
+    // ✅ Gửi mail nếu là approved, rejected hoặc refunded
+    if (["approved", "rejected", "refunded"].includes(status)) {
+      const registration = request.student?.registration;
+      const email = registration?.email;
+      const fullname = registration?.fullname;
+      const code = request.renewalRequestId;
+      const room = registration?.room?.room;
+      const building = registration?.room?.building?.name;
+      const note = request.notes || "Không có ghi chú.";
+
+      if (email && fullname) {
+        let subject = "";
+        if (status === "approved") {
+          subject = "Yêu cầu gia hạn phòng đã được duyệt";
+        } else if (status === "rejected") {
+          subject = "Yêu cầu gia hạn phòng đã bị từ chối";
+        } else if (status === "refunded") {
+          subject = "Bạn đã được hoàn tiền gia hạn phòng";
+        }
+
+        const text = `Chào ${fullname},\n\n${note}\n\nYêu cầu gia hạn: ${request.month}/${request.year}\nPhòng: ${room} - Khu: ${building}\nMã đăng ký: ${code}\n\nBan quản lý Ký túc xá - Đại học\nĐịa chỉ: Nhà A1 - Phòng 701\nAddress: A1 - Room 701\nĐiện thoại: 0987654321`;
+
+        await sendMail(email, subject, text);
+      }
     }
 
     res.json(request);

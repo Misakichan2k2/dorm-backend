@@ -5,6 +5,7 @@ import {
   signup,
   adminSignup,
   adminSignin,
+  changePassword,
 } from "../controllers/authController.js";
 import { verifyToken } from "../middlewares/verifyUser.js";
 
@@ -14,6 +15,7 @@ const router = express.Router();
 router.post("/signup", signup);
 router.post("/signin", signin);
 router.get("/signout", verifyToken, signOut);
+router.put("/change-password", verifyToken, changePassword);
 
 // Admin
 router.post("/admin/signup", adminSignup);

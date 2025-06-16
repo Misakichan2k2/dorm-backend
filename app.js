@@ -35,14 +35,9 @@ connectDB();
 
 // Chạy mỗi 60 phút
 setInterval(() => {
-  // cancelExpiredRegistrations();
-  autoUpdateStudentStatuses();
-}, 60 * 60 * 1000); // 1 giờ
-
-setInterval(() => {
   cancelExpiredRegistrations();
-  // autoUpdateStudentStatuses();
-}, 60 * 1000); // mỗi 1 phút
+  autoUpdateStudentStatuses();
+}, 60 * 60 * 1000);
 
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);

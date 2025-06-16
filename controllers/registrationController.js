@@ -6,6 +6,7 @@ import { sendMail } from "../utils/registrationMailer.js";
 import { format } from "date-fns";
 import fs from "fs/promises";
 import cloudinary from "../config/cloudinary.js";
+import { sendRegistrationInvoiceEmail } from "../middlewares/invoiceMailer.js";
 
 const formatDate = (date) => {
   if (!date || isNaN(new Date(date))) return "Không xác định";
@@ -26,12 +27,18 @@ export const createRegistration = async (req, res, next) => {
     course,
     school,
     class: studentClass,
-    address,
     phone,
     email,
     month,
     year,
   } = req.body;
+
+  const address = {
+    provinceCode: req.body["address.provinceCode"],
+    districtCode: req.body["address.districtCode"],
+    wardCode: req.body["address.wardCode"],
+    street: req.body["address.street"],
+  };
 
   try {
     // Kiểm tra đã có đơn chờ xử lý hoặc chưa thanh toán chưa
@@ -291,7 +298,7 @@ export const getRegistrationsByStatus = async (req, res) => {
   }
 };
 
-// Cập nhật trạng thái đơn đăng ký
+// Update status registration
 export const updateRegistrationStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -309,35 +316,16 @@ export const updateRegistrationStatus = async (req, res, next) => {
       return res.status(400).json({ message: "Trạng thái không hợp lệ." });
     }
 
+    // Tìm đơn đăng ký cũ để kiểm tra trạng thái trước đó
     const oldRegistration = await Registration.findById(id);
     if (!oldRegistration) {
       return res.status(404).json({ message: "Không tìm thấy đơn đăng ký." });
     }
 
-    let registerFormDetail = "";
-
-    if (status === "approved") {
-      registerFormDetail = `Đơn đăng ký phòng của bạn đã được duyệt. Thời gian thuê phòng bắt đầu từ ngày ${formatDate(
-        oldRegistration.startDate
-      )}. Vui lòng đến phòng quản lý ký túc xá để nhận chìa khóa.`;
-    } else if (status === "rejected") {
-      registerFormDetail =
-        "Rất tiếc, đơn đăng ký phòng của bạn đã bị từ chối. Vui lòng kiểm tra thông tin chi tiết trên hệ thống hoặc liên hệ Ban Quản lý Ký túc xá để biết thêm chi tiết. Ngoài ra, bạn vui lòng đến phòng Quản lý Ký túc xá để nhận lại số tiền đã thanh toán.";
-    } else if (status === "pending") {
-      registerFormDetail =
-        "Đơn đăng ký phòng của bạn đang chờ được xét duyệt. Vui lòng đợi hoặc liên hệ ban quản lý để biết thêm chi tiết.";
-    } else if (status === "unpaid") {
-      registerFormDetail =
-        "Bạn chưa thanh toán. Vui lòng hoàn tất thanh toán trong vòng 24 giờ kể từ khi tạo đơn để đơn đăng ký không bị hủy.";
-    } else if (status === "refunded") {
-      registerFormDetail = `Việc hoàn trả tiền cho sinh viên đã được thực hiện thành công.`;
-    } else {
-      registerFormDetail = `Không xác định.`;
-    }
-
+    // Cập nhật trạng thái (KHÔNG cập nhật registerFormDetail)
     const updated = await Registration.findByIdAndUpdate(
       id,
-      registerFormDetail ? { status, registerFormDetail } : { status },
+      { status },
       { new: true }
     ).populate({
       path: "room",
@@ -351,7 +339,12 @@ export const updateRegistrationStatus = async (req, res, next) => {
       return res.status(404).json({ message: "Không tìm thấy đơn đăng ký." });
     }
 
-    // Gửi email nếu chuyển từ pending sang approved/rejected
+    // ✅ Nếu chuyển sang pending và paymentMethod là Tiền mặt → gửi hóa đơn
+    if (status === "pending" && oldRegistration.paymentMethod === "Tiền mặt") {
+      await sendRegistrationInvoiceEmail(updated._id);
+    }
+
+    // ✅ Nếu chuyển từ pending sang approved / rejected → gửi mail thông báo
     if (
       oldRegistration.status === "pending" &&
       (status === "approved" || status === "rejected")
@@ -361,7 +354,15 @@ export const updateRegistrationStatus = async (req, res, next) => {
           ? "Đơn đăng ký phòng của bạn đã được duyệt"
           : "Đơn đăng ký phòng của bạn đã bị từ chối";
 
-      const text = `Chào ${updated.fullname},\n\n${registerFormDetail}\n\nPhòng đăng ký: #${updated.registrationCode}\nPhòng: ${updated.room.room} - Khu: ${updated.room.building.name}\n\nTrân trọng,\nBan quản lý ký túc xá.`;
+      const text = `Chào ${updated.fullname},\n\n${updated.registerFormDetail}\n\nPhòng đăng ký: #${updated.registrationCode}\nPhòng: ${updated.room.room} - Khu: ${updated.room.building.name}\n\nBan quản lý Ký túc xá - Đại học\nĐịa chỉ: Nhà A1 - Phòng 701\nAddress: A1 - Room 701\nĐiện thoại: 0987654321`;
+
+      await sendMail(updated.email, subject, text);
+    }
+
+    // ✅ Nếu là refunded → cũng gửi mail thông báo
+    if (status === "refunded") {
+      const subject = "Đơn đăng ký phòng đã được hoàn tiền";
+      const text = `Chào ${updated.fullname},\n\n${updated.registerFormDetail}\n\nPhòng đăng ký: #${updated.registrationCode}\nPhòng: ${updated.room.room} - Khu: ${updated.room.building.name}\n\nBan quản lý Ký túc xá - Đại học\nĐịa chỉ: Nhà A1 - Phòng 701\nAddress: A1 - Room 701\nĐiện thoại: 0987654321`;
 
       await sendMail(updated.email, subject, text);
     }
@@ -374,7 +375,6 @@ export const updateRegistrationStatus = async (req, res, next) => {
       });
 
       if (!existedStudent) {
-        // Lấy startDate và endDate từ registration
         const { startDate, endDate } = updated;
 
         if (!startDate || !endDate) {
@@ -456,7 +456,7 @@ export const updateRegistrationById = async (req, res) => {
 
 export const cancelExpiredRegistrations = async () => {
   const now = new Date();
-  const expireThreshold = new Date(now.getTime() - 60 * 1000);
+  const expireThreshold = new Date(now.getTime() - 60 * 60 * 1000);
 
   try {
     const expiredRegs = await Registration.find({
@@ -561,5 +561,67 @@ export const updatePaymentMethod = async (req, res) => {
   } catch (error) {
     console.error("Lỗi khi cập nhật paymentMethod:", error);
     res.status(500).json({ message: "Lỗi server." });
+  }
+};
+
+export const getRegistrationStatistics = async (req, res) => {
+  try {
+    const matchStage = {
+      registrationCode: { $ne: null },
+      startDate: { $ne: null },
+    };
+
+    const registrations = await Registration.aggregate([
+      { $match: matchStage },
+      {
+        $lookup: {
+          from: "rooms",
+          localField: "room",
+          foreignField: "_id",
+          as: "room",
+        },
+      },
+      { $unwind: "$room" },
+      {
+        $lookup: {
+          from: "buildings",
+          localField: "room.building",
+          foreignField: "_id",
+          as: "building",
+        },
+      },
+      { $unwind: "$building" },
+      {
+        $project: {
+          building: "$building.name",
+          status: 1,
+          month: 1,
+          year: 1,
+        },
+      },
+    ]);
+
+    const tableMap = new Map();
+
+    registrations.forEach((r) => {
+      const key = `${r.building}-${r.month}-${r.year}-${r.status}`;
+      if (!tableMap.has(key)) {
+        tableMap.set(key, {
+          building: r.building,
+          month: r.month,
+          year: r.year,
+          status: r.status,
+          count: 0,
+        });
+      }
+      tableMap.get(key).count += 1;
+    });
+
+    const tableData = Array.from(tableMap.values());
+
+    return res.json(tableData);
+  } catch (error) {
+    console.error("Lỗi thống kê:", error);
+    res.status(500).json({ message: "Lỗi server" });
   }
 };

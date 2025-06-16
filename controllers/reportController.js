@@ -240,3 +240,70 @@ export const deleteReport = async (req, res, next) => {
     next(error);
   }
 };
+
+export const getReportCategoryStats = async (req, res, next) => {
+  try {
+    const { building, category, status, month, year } = req.query;
+
+    // Lấy toàn bộ report, populate để lấy thông tin building
+    const reports = await ReportModel.find().populate({
+      path: "student",
+      populate: {
+        path: "registration",
+        populate: {
+          path: "room",
+          populate: { path: "building" },
+        },
+      },
+    });
+
+    // Ánh xạ dữ liệu để thống nhất schema
+    const processed = reports.map((report) => {
+      const student = report.student;
+      const registration = student?.registration;
+      const room = registration?.room;
+      const buildingObj = room?.building;
+
+      return {
+        category: report.category,
+        status: report.status,
+        createdAt: report.createdAt,
+        building: buildingObj?.name || "",
+      };
+    });
+
+    // Lọc theo các tham số truy vấn
+    const filtered = processed.filter((item) => {
+      const created = new Date(item.createdAt);
+      return (
+        (!building || item.building === building) &&
+        (!category || item.category === category) &&
+        (!status || item.status === status) &&
+        (!month || created.getMonth() + 1 === Number(month)) &&
+        (!year || created.getFullYear() === Number(year))
+      );
+    });
+
+    // Thống kê theo từng loại sự cố
+    const categories = ["Hỏng thiết bị", "Sự cố điện", "Sự cố nước", "Khác"];
+    const stats = {};
+
+    for (const cat of categories) {
+      stats[cat] = filtered.filter((r) => r.category === cat).length;
+    }
+
+    // Đếm tổng số báo cáo chờ xử lý trong tập filtered
+    const pendingCount = filtered.filter(
+      (r) => r.status === "Chờ xử lý"
+    ).length;
+
+    const statsArray = Object.entries(stats).map(([category, count]) => ({
+      category,
+      count,
+    }));
+
+    res.status(200).json({ categories: statsArray, pendingCount });
+  } catch (error) {
+    next(error);
+  }
+};

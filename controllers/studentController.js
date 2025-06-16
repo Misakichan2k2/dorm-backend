@@ -1,4 +1,5 @@
 import StudentModel from "../models/Student.js";
+import dayjs from "dayjs";
 
 // USER - Get student's own info + roommates (latest overlap logic)
 export const getMyStudentInfo = async (req, res, next) => {
@@ -102,24 +103,6 @@ export const getMyStudentInfo = async (req, res, next) => {
   }
 };
 
-//ADMIN - Get all students (FULL thông tin)
-// export const getAllStudents = async (req, res, next) => {
-//   try {
-//     const students = await StudentModel.find()
-//       .sort({ createdAt: -1 })
-//       .populate("user")
-//       .populate({
-//         path: "room",
-//         populate: { path: "building" },
-//       })
-//       .populate("registration");
-
-//     res.status(200).json(students);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
-
 export const getAllStudents = async (req, res, next) => {
   try {
     // Lấy tất cả student, populate user và phòng + building
@@ -185,62 +168,6 @@ export const getAllStudents = async (req, res, next) => {
     next(error);
   }
 };
-
-// export const getAllStudents = async (req, res, next) => {
-//   try {
-//     // 1. Lấy tất cả student records, populate đầy đủ
-//     const allStudents = await StudentModel.find()
-//       .populate("user")
-//       .populate("registration")
-//       .populate({
-//         path: "room",
-//         populate: { path: "building" },
-//       })
-//       .sort({ createdAt: -1 }); // Để đảm bảo bản ghi mới nhất nằm trước
-
-//     // 2. Gom các student theo user._id
-//     const studentMap = new Map(); // key: userId, value: list of student records
-
-//     allStudents.forEach((student) => {
-//       const userId = student.user._id.toString();
-//       if (!studentMap.has(userId)) {
-//         studentMap.set(userId, []);
-//       }
-//       studentMap.get(userId).push(student);
-//     });
-
-//     // 3. Tạo kết quả
-//     const result = [];
-
-//     for (const [userId, studentList] of studentMap.entries()) {
-//       const current = studentList[0]; // bản ghi mới nhất
-//       const history = studentList.slice(1).map((s) => ({
-//         buildingName: s.room?.building?.name || "N/A",
-//         roomNumber: s.room?.room || "N/A",
-//         startDate: s.startDate,
-//         endDate: s.endDate,
-//         status: s.status,
-//       }));
-
-//       result.push({
-//         _id: current._id,
-//         user: current.user,
-//         registration: current.registration,
-//         room: current.room,
-//         startDate: current.startDate,
-//         endDate: current.endDate,
-//         status: current.status,
-//         createdAt: current.createdAt,
-//         updatedAt: current.updatedAt,
-//         history,
-//       });
-//     }
-
-//     res.status(200).json(result);
-//   } catch (error) {
-//     next(error);
-//   }
-// };
 
 export const getStudentById = async (req, res, next) => {
   try {
@@ -424,5 +351,83 @@ export const deleteStudentById = async (req, res, next) => {
     res.status(200).json({ message: "Xóa sinh viên thành công.", student });
   } catch (error) {
     next(error);
+  }
+};
+
+export const getRoomIncomeStats = async (req, res) => {
+  try {
+    const students = await StudentModel.find()
+      .populate({
+        path: "registration",
+        populate: {
+          path: "room",
+          populate: { path: "building" },
+        },
+      })
+      .lean();
+
+    const results = [];
+
+    students.forEach((student) => {
+      const { startDate, endDate, registration } = student;
+      if (!registration || !registration.room || !registration.room.price)
+        return;
+
+      const price = registration.room.price;
+      const building = registration.room.building?.name || "Không xác định";
+
+      let current = dayjs(startDate);
+      const end = dayjs(endDate);
+      let isFirstMonth = true;
+
+      while (current.isBefore(end) || current.isSame(end, "month")) {
+        const month = current.month() + 1;
+        const year = current.year();
+        const type = isFirstMonth ? "Đăng ký mới" : "Gia hạn";
+
+        results.push({
+          building,
+          month,
+          year,
+          type,
+          income: price,
+          count: 1,
+        });
+
+        current = current.add(1, "month");
+        isFirstMonth = false;
+      }
+    });
+
+    // Gom nhóm theo building + month + year + type
+    const grouped = {};
+
+    results.forEach((item) => {
+      const key = `${item.building}-${item.month}-${item.year}-${item.type}`;
+      if (!grouped[key]) {
+        grouped[key] = {
+          building: item.building,
+          month: item.month,
+          year: item.year,
+          type: item.type,
+          income: 0,
+          count: 0,
+        };
+      }
+      grouped[key].income += item.income;
+      grouped[key].count += 1;
+    });
+
+    // Sắp xếp: year giảm dần → month giảm dần → type ưu tiên "Đăng ký mới"
+    const sorted = Object.values(grouped).sort((a, b) => {
+      if (b.year !== a.year) return b.year - a.year;
+      if (b.month !== a.month) return b.month - a.month;
+      return a.type === "Đăng ký mới" ? -1 : 1;
+    });
+
+    res.json(sorted);
+  } catch (error) {
+    console.error("Lỗi khi thống kê doanh thu:", error);
+    res.status(500).json({ message: "Lỗi server" });
   }
 };

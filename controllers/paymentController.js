@@ -395,6 +395,7 @@ export const vnpayRegistrationReturn = async (req, res) => {
       registration.status = "pending";
       registration.registerFormDetail =
         "Đơn đăng ký phòng của bạn đang chờ được xét duyệt. Vui lòng đợi hoặc liên hệ ban quản lý để biết thêm chi tiết.";
+      registration.paymentMethod = "Chuyển khoản";
       await registration.save();
     } catch (err) {
       console.error("Lỗi khi cập nhật trạng thái:", err);
@@ -538,6 +539,9 @@ export const vnpayRenewalReturn = async (req, res) => {
 
     try {
       request.status = "pending";
+      request.notes =
+        "Đơn gia hạn thuê phòng của bạn đang chờ được xét duyệt. Vui lòng đợi hoặc liên hệ ban quản lý để biết thêm chi tiết."; // ✅ Thêm dòng này
+      request.paymentMethod = "Chuyển khoản";
       await request.save();
     } catch (err) {
       console.error("Lỗi khi cập nhật trạng thái yêu cầu gia hạn:", err);
