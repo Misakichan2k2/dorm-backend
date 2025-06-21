@@ -4,46 +4,75 @@ import bcryptjs from "bcryptjs";
 import { errorHandler } from "../utils/errorHandler.js";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import crypto from "crypto";
+import nodemailer from "nodemailer";
 dotenv.config();
 
 // User
 export const signup = async (req, res, next) => {
   const { fullname, email, password } = req.body;
 
-  // Check if the email already exists
-  const existingUserByEmail = await User.findOne({ email });
-  if (existingUserByEmail) {
-    console.log("Email already exists:", email); // Debug log
-    return res.status(400).json({ message: "Email already exists!" });
-  }
-
-  // Find the last user and generate the next userId
-  const lastUser = await User.findOne().sort({ userId: -1 });
-  let newUserId = "US001"; // Default userId if no users exist
-
-  if (lastUser) {
-    const lastUserId = lastUser.userId;
-    const lastNumber = parseInt(lastUserId.substring(2)); // Extract the number part
-    const newNumber = lastNumber + 1; // Increment by 1
-    newUserId = `US${newNumber.toString().padStart(3, "0")}`; // Format to 3 digits
-  }
-
-  // Hash the password
-  const hashedPassword = bcryptjs.hashSync(password, 10);
-
-  // Create a new user with the required fields and auto-generated userId
-  const newUser = new User({
-    fullname,
-    email,
-    password: hashedPassword,
-    userId: newUserId, // Assign generated userId
-  });
-
   try {
-    // Save the new user
+    // Kiểm tra email đã tồn tại chưa
+    const existingUserByEmail = await User.findOne({ email });
+    if (existingUserByEmail) {
+      return res.status(400).json({ message: "Email already exists!" });
+    }
+
+    // Tạo userId tự động
+    const lastUser = await User.findOne().sort({ userId: -1 });
+    let newUserId = "US001";
+    if (lastUser) {
+      const lastNumber = parseInt(lastUser.userId.substring(2));
+      const newNumber = lastNumber + 1;
+      newUserId = `US${newNumber.toString().padStart(3, "0")}`;
+    }
+
+    // Băm mật khẩu
+    const hashedPassword = bcryptjs.hashSync(password, 10);
+
+    // Tạo token xác thực email
+    const verificationToken = crypto.randomBytes(32).toString("hex");
+    const expires = Date.now() + 60 * 60 * 1000; // 1h
+
+    // Tạo user mới
+    const newUser = new User({
+      fullname,
+      email,
+      password: hashedPassword,
+      userId: newUserId,
+      emailVerificationToken: verificationToken,
+      emailVerificationExpires: expires,
+    });
+
     await newUser.save();
 
-    res.status(201).json("User created successfully!");
+    // Gửi email xác thực
+    const verifyLink = `http://localhost:5173/verify-email?token=${verificationToken}`;
+
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"KTX System" <${process.env.EMAIL_USER}>`,
+      to: newUser.email,
+      subject: "Xác thực email",
+      html: `
+        <h3>Xin chào ${newUser.fullname},</h3>
+        <p>Vui lòng xác thực email bằng cách bấm vào link sau:</p>
+        <a href="${verifyLink}">${verifyLink}</a>
+        <p>Link này sẽ hết hạn sau 1 giờ.</p>
+      `,
+    });
+
+    res.status(201).json({
+      message: "Tạo tài khoản thành công. Vui lòng kiểm tra email để xác thực.",
+    });
   } catch (error) {
     next(error);
   }
@@ -65,6 +94,16 @@ export const signin = async (req, res, next) => {
     // Kiểm tra nếu tài khoản bị khóa
     if (existedUser.status === "banned") {
       return next(errorHandler(403, "Tài khoản của bạn đã bị khóa."));
+    }
+
+    // Kiểm tra mail đã đc xác thực
+    if (!existedUser.isEmailVerified) {
+      return next(
+        errorHandler(
+          403,
+          "Email của bạn chưa được xác thực. Vui lòng kiểm tra email để xác thực."
+        )
+      );
     }
 
     const token = jwt.sign({ id: existedUser._id }, process.env.JWT_SECRET);
@@ -158,6 +197,107 @@ export const adminSignin = async (req, res, next) => {
     const token = jwt.sign({ id: existedAdmin._id }, process.env.JWT_SECRET);
     const { password: pass, ...rest } = existedAdmin._doc;
     res.status(200).json({ ...rest, token });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyEmail = async (req, res, next) => {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return next(errorHandler(400, "Thiếu token xác thực"));
+    }
+
+    const user = await User.findOne({ emailVerificationToken: token });
+
+    if (!user) {
+      return next(
+        errorHandler(400, "Token không hợp lệ hoặc tài khoản không tồn tại")
+      );
+    }
+
+    if (user.emailVerificationExpires < Date.now()) {
+      return next(errorHandler(400, "Token đã hết hạn"));
+    }
+
+    user.isEmailVerified = true;
+    user.emailVerificationToken = undefined;
+    user.emailVerificationExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Email đã được xác thực thành công" });
+  } catch (error) {
+    next(errorHandler(500, "Lỗi xác thực email"));
+  }
+};
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.query;
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({ message: "Email không tồn tại." });
+    }
+
+    // Tạo token và thời hạn hết hạn
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    user.resetPasswordToken = resetToken;
+    user.resetPasswordExpires = Date.now() + 60 * 60 * 1000; // 1 giờ
+
+    await user.save();
+
+    const resetLink = `http://localhost:5173/reset-password?token=${resetToken}`;
+
+    const transporter = nodemailer.createTransport({
+      service: "Gmail",
+      auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS,
+      },
+    });
+
+    await transporter.sendMail({
+      from: `"KTX System" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: "Đặt lại mật khẩu",
+      html: `
+        <h3>Xin chào ${user.fullname},</h3>
+        <p>Bạn đã yêu cầu đặt lại mật khẩu. Nhấn vào liên kết sau để thiết lập mật khẩu mới:</p>
+        <a href="${resetLink}">${resetLink}</a>
+        <p>Liên kết này sẽ hết hạn sau 1 giờ.</p>
+      `,
+    });
+
+    res.status(200).json({ message: "Email đặt lại mật khẩu đã được gửi." });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.body;
+
+    const user = await User.findOne({
+      resetPasswordToken: token,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res
+        .status(400)
+        .json({ message: "Token không hợp lệ hoặc đã hết hạn." });
+    }
+
+    user.password = bcryptjs.hashSync(newPassword, 10);
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpires = undefined;
+    await user.save();
+
+    res.status(200).json({ message: "Đặt lại mật khẩu thành công." });
   } catch (error) {
     next(error);
   }

@@ -148,7 +148,12 @@ export const getMyProfile = async (req, res, next) => {
       .populate("user");
 
     if (!registration) {
-      return res.status(404).json({ message: "Không tìm thấy đơn đăng ký." });
+      return res
+        .status(404)
+        .json({
+          message:
+            "Bạn chưa đăng ký phòng nào. Vui lòng hoàn tất đăng ký để tiếp tục sử dụng hệ thống.",
+        });
     }
 
     res.status(200).json({ data: registration.toObject() });

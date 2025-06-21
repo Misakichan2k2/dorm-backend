@@ -35,6 +35,9 @@ const userSchema = new mongoose.Schema(
       enum: ["active", "banned"],
       default: "active",
     },
+    isEmailVerified: { type: Boolean, default: false },
+    resetPasswordToken: { type: String },
+    resetPasswordExpires: { type: Date },
   },
 
   { timestamps: true }
