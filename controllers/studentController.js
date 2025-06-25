@@ -431,3 +431,59 @@ export const getRoomIncomeStats = async (req, res) => {
     res.status(500).json({ message: "Lỗi server" });
   }
 };
+
+// Kiểm tra user đã là sinh viên (có bản ghi student) hay chưa
+export const isStudent = async (req, res, next) => {
+  try {
+    const userId = req.user?.id || req.user?._id;
+
+    if (!userId) {
+      return res
+        .status(401)
+        .json({ message: "Unauthorized - missing user id" });
+    }
+
+    const existingStudent = await StudentModel.findOne({ user: userId });
+
+    const isStudent = !!existingStudent;
+
+    res.status(200).json({ isStudent });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteStudentsWithoutRegistration = async (req, res, next) => {
+  try {
+    const students = await StudentModel.find().populate("registration");
+    const toDelete = students.filter((s) => !s.registration);
+
+    if (toDelete.length === 0) {
+      return res
+        .status(200)
+        .json({ message: "Không có sinh viên nào cần xóa." });
+    }
+
+    await StudentModel.deleteMany({ _id: { $in: toDelete.map((s) => s._id) } });
+
+    res.status(200).json({ message: `Đã xóa ${toDelete.length} sinh viên.` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAllStudentsDb = async (req, res, next) => {
+  try {
+    const students = await StudentModel.find()
+      .sort({ createdAt: -1 })
+      .populate("user")
+      .populate({
+        path: "registration",
+        populate: { path: "room", populate: { path: "building" } }, // nếu muốn xem luôn phòng & khu
+      });
+
+    res.status(200).json(students);
+  } catch (error) {
+    next(error);
+  }
+};

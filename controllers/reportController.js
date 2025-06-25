@@ -19,9 +19,15 @@ const generateReportId = async () => {
 // CREATE - User tạo báo cáo
 export const createReport = async (req, res, next) => {
   try {
-    const student = await StudentModel.findOne({ user: req.user.id });
+    const student = await StudentModel.findOne({
+      user: req.user.id,
+      status: "Đang ở",
+    });
+
     if (!student) {
-      return res.status(404).json({ message: "Không tìm thấy sinh viên." });
+      return res.status(404).json({
+        message: "Bạn hiện không ở ký túc xá nên không thể gửi báo cáo.",
+      });
     }
 
     const reportId = await generateReportId();

@@ -511,7 +511,7 @@ export const vnpayRenewalReturn = async (req, res) => {
 
     if (secureHash !== signed) {
       return res.redirect(
-        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=invalid-signature`
+        `${vnpayConfig.paymentResultUrls.renewal}?success=false&reason=invalid-signature`
       );
     }
 
@@ -527,26 +527,26 @@ export const vnpayRenewalReturn = async (req, res) => {
 
     if (!request) {
       return res.redirect(
-        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=not-found`
+        `${vnpayConfig.paymentResultUrls.renewal}?success=false&reason=not-found`
       );
     }
 
     if (request.status === "pending") {
       return res.redirect(
-        `${vnpayConfig.paymentResultUrls.request}?success=true&message=already-paid`
+        `${vnpayConfig.paymentResultUrls.renewal}?success=true&message=already-paid`
       );
     }
 
     try {
       request.status = "pending";
       request.notes =
-        "Đơn gia hạn thuê phòng của bạn đang chờ được xét duyệt. Vui lòng đợi hoặc liên hệ ban quản lý để biết thêm chi tiết."; // ✅ Thêm dòng này
+        "Đơn gia hạn thuê phòng của bạn đang chờ được xét duyệt. Vui lòng đợi hoặc liên hệ ban quản lý để biết thêm chi tiết.";
       request.paymentMethod = "Chuyển khoản";
       await request.save();
     } catch (err) {
       console.error("Lỗi khi cập nhật trạng thái yêu cầu gia hạn:", err);
       return res.redirect(
-        `${vnpayConfig.paymentResultUrls.request}?success=false&reason=update-failed`
+        `${vnpayConfig.paymentResultUrls.renewal}?success=false&reason=update-failed`
       );
     }
 
@@ -556,12 +556,12 @@ export const vnpayRenewalReturn = async (req, res) => {
     }
 
     return res.redirect(
-      `${vnpayConfig.paymentResultUrls.request}?success=true`
+      `${vnpayConfig.paymentResultUrls.renewal}?success=true`
     );
   } catch (error) {
     console.error("VNPAY RENEWAL RETURN ERROR:", error);
     return res.redirect(
-      `${vnpayConfig.paymentResultUrls.request}?success=false&reason=server-error`
+      `${vnpayConfig.paymentResultUrls.renewal}?success=false&reason=server-error`
     );
   }
 };

@@ -23,5 +23,6 @@ export default {
   paymentResultUrls: {
     invoice: `${FRONTEND_BASE_URL}/payment-result`,
     request: `${FRONTEND_BASE_URL}/payment-result-request`,
+    renewal: `${FRONTEND_BASE_URL}/payment-result-renewal`,
   },
 };

@@ -48,9 +48,33 @@ export const createRegistration = async (req, res, next) => {
     });
 
     if (existingRequest) {
+      const message =
+        existingRequest.status === "pending"
+          ? "Bạn đã có đơn đăng ký đang chờ phê duyệt, không thể tạo thêm!"
+          : "Bạn đang có đơn đăng ký chưa thanh toán, vui lòng thanh toán trước khi tạo mới!";
+
+      return res.status(400).json({ message });
+    }
+
+    // Kiểm tra nếu user đang ở và không đăng ký lại đúng phòng, tháng, năm
+    const currentStudent = await Student.findOne({
+      user: req.user.id,
+      status: "Đang ở",
+    }).populate({
+      path: "registration",
+      select: "room month year",
+    });
+
+    if (
+      currentStudent?.registration &&
+      currentStudent.registration.room &&
+      currentStudent.registration.room.toString() === roomId.toString() &&
+      currentStudent.registration.month === Number(month) &&
+      currentStudent.registration.year === Number(year)
+    ) {
       return res.status(400).json({
         message:
-          "Bạn đang có 1 yêu cầu chờ phê duyệt hoặc chưa thanh toán, không thể tạo thêm yêu cầu mới!",
+          "Bạn đang ở trong phòng này vào thời gian đã chọn, không thể tạo thêm đơn trùng lặp!",
       });
     }
 
@@ -148,12 +172,10 @@ export const getMyProfile = async (req, res, next) => {
       .populate("user");
 
     if (!registration) {
-      return res
-        .status(404)
-        .json({
-          message:
-            "Bạn chưa đăng ký phòng nào. Vui lòng hoàn tất đăng ký để tiếp tục sử dụng hệ thống.",
-        });
+      return res.status(404).json({
+        message:
+          "Bạn chưa đăng ký phòng nào. Vui lòng hoàn tất đăng ký để tiếp tục sử dụng hệ thống.",
+      });
     }
 
     res.status(200).json({ data: registration.toObject() });
@@ -292,8 +314,11 @@ export const getRegistrationsByStatus = async (req, res) => {
 
     // ⚠️ Lọc theo khu nhà (building.name là tên khu, ví dụ "A", "B", "C")
     if (building) {
+      const buildingLower = building.toLowerCase();
       registrations = registrations.filter(
-        (r) => r.room?.building?.name === building
+        (r) =>
+          r.room?.building?.name &&
+          r.room.building.name.toLowerCase() === buildingLower
       );
     }
 
@@ -461,7 +486,7 @@ export const updateRegistrationById = async (req, res) => {
 
 export const cancelExpiredRegistrations = async () => {
   const now = new Date();
-  const expireThreshold = new Date(now.getTime() - 60 * 60 * 1000);
+  const expireThreshold = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   try {
     const expiredRegs = await Registration.find({

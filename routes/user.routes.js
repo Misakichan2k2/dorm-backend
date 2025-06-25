@@ -6,6 +6,7 @@ import {
   deleteUser,
   banUser,
   updateUserStatus,
+  updateUserById,
 } from "../controllers/userController.js";
 
 const router = express.Router();
@@ -16,5 +17,6 @@ router.put("/:id", updateUser);
 router.delete("/:id", deleteUser);
 router.put("/:id/status", updateUserStatus);
 router.patch("/:id/ban", banUser);
+router.put("/users/:id", updateUserById);
 
 export default router;

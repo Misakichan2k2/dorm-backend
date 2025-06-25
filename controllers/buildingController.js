@@ -25,22 +25,29 @@ export const getBuildings = async (req, res, next) => {
 
     const studentCounts = await Student.aggregate([
       {
-        $match: {
-          status: "Đang ở",
-        },
+        $match: { status: "Đang ở" },
       },
       {
         $lookup: {
-          from: "rooms",
-          localField: "room",
+          from: "registrations",
+          localField: "registration",
           foreignField: "_id",
-          as: "roomData",
+          as: "reg",
         },
       },
-      { $unwind: "$roomData" },
+      { $unwind: "$reg" },
+      {
+        $lookup: {
+          from: "rooms",
+          localField: "reg.room",
+          foreignField: "_id",
+          as: "room",
+        },
+      },
+      { $unwind: "$room" },
       {
         $group: {
-          _id: "$roomData.building",
+          _id: "$room.building",
           count: { $sum: 1 },
         },
       },
@@ -69,28 +76,33 @@ export const getBuildingById = async (req, res, next) => {
     const building = await Building.findById(req.params.id);
     if (!building) return next(errorHandler(404, "Building not found"));
 
-    const studentCount = await Student.aggregate([
+    const studentCounts = await Student.aggregate([
       {
-        $match: {
-          status: "Đang ở",
-        },
+        $match: { status: "Đang ở" },
       },
       {
         $lookup: {
-          from: "rooms",
-          localField: "room",
+          from: "registrations",
+          localField: "registration",
           foreignField: "_id",
-          as: "roomData",
+          as: "reg",
         },
       },
-      { $unwind: "$roomData" },
+      { $unwind: "$reg" },
       {
-        $match: {
-          "roomData.building": building._id,
+        $lookup: {
+          from: "rooms",
+          localField: "reg.room",
+          foreignField: "_id",
+          as: "room",
         },
       },
+      { $unwind: "$room" },
       {
-        $count: "rentedStudents",
+        $group: {
+          _id: "$room.building",
+          count: { $sum: 1 },
+        },
       },
     ]);
 
